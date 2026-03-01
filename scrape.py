@@ -1,6 +1,5 @@
 import time
 import csv
-import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -13,9 +12,8 @@ WAIT_TIME = 10  # seconds
 MARKET_INDEX = 3
 
 # ---- SETUP BROWSER ----
-options = webdriver.EdgeOptions()
-# options.add_argument("--start-maximized")
-driver = webdriver.ChromiumEdge(options)
+options = webdriver.FirefoxOptions()
+driver = webdriver.Firefox(options=options)
 wait = WebDriverWait(driver, WAIT_TIME)
 
 driver.get(URL)
@@ -23,9 +21,7 @@ time.sleep(5)  # initial page load
 
 # ---- TURN OFF "HIDE CLOSED MARKETS" ----
 try:
-    toggle = wait.until(
-        EC.element_to_be_clickable((By.ID, "hide-closed-markets"))
-    )
+    toggle = wait.until(EC.element_to_be_clickable((By.ID, "hide-closed-markets")))
     # if toggle.is_selected():
     toggle.click()
     time.sleep(1)
@@ -43,7 +39,10 @@ except Exception as e:
     print("Table view button not found:", e)
 
 
-collected_data = []
+header_written = False
+total_rows = 0
+csv_file = open(OUTPUT_CSV, "w", newline="", encoding="utf-8-sig")
+writer = csv.writer(csv_file)
 
 # ---- PAGINATION LOOP ----
 page = 1
@@ -52,38 +51,49 @@ while True:
     print("Processing page...", page)
     wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
 
-    # read all rows from the table
-    rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
+    # read all rows from the table (bulk extraction in browser for speed)
+    page_rows = driver.execute_script(
+        """
+        const marketIndex = arguments[0];
+        const rows = Array.from(document.querySelectorAll('table tbody tr'));
 
-    for row in rows:
-        cells = row.find_elements(By.TAG_NAME, "td")
-        collected_data.append([cell.text.strip() for cell in cells])
+        return rows.map((row) => {
+            const cells = Array.from(row.querySelectorAll('td'));
+            const rowData = cells.map((cell) => (cell.innerText || '').trim());
 
-        market_cell = cells[MARKET_INDEX]
-        try:
-            market_link = market_cell.find_element(By.TAG_NAME, "a").get_attribute("href")
-        except:
-            market_link = ""
-        collected_data[-1].append(market_link)  # append link to last row
+            let marketLink = '';
+            if (cells.length > marketIndex) {
+                const anchor = cells[marketIndex].querySelector('a[href]');
+                marketLink = anchor ? anchor.href : '';
+            }
+
+            rowData.push(marketLink);
+            return rowData;
+        });
+        """,
+        MARKET_INDEX,
+    )
 
     # ---- SAVE TO CSV ----
-    if collected_data:
-        # generate headers from the first page
-        headers = driver.find_elements(By.CSS_SELECTOR, "table thead th")
-        header_text = [h.text.strip() for h in headers] + [
-            "Market Link"
-        ]  # add extra column for link
+    if page_rows:
+        if not header_written:
+            headers = driver.find_elements(By.CSS_SELECTOR, "table thead th")
+            header_text = [h.text.strip() for h in headers] + ["Market Link"]
+            writer.writerow(header_text)
+            header_written = True
 
-        df = pd.DataFrame(collected_data, columns=header_text)
-        df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8-sig")
-        print(f"Saved {len(df)} rows to {OUTPUT_CSV}")
+        writer.writerows(page_rows)
+        total_rows += len(page_rows)
+        print(f"Saved {total_rows} rows to {OUTPUT_CSV}")
     else:
-        print("No data found!")
+        print("No data found on this page!")
 
     # check for next page button
     try:
         next_btn = wait.until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "svg.lucide-chevron-right"))
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, "svg.lucide-chevron-right")
+            )
         )
 
         next_btn = next_btn.find_element(By.XPATH, "./ancestor::button")
@@ -98,18 +108,11 @@ while True:
         print("Error finding or clicking next page button:", e)
         break
 
-    if page >= 4:
-        break
+csv_file.close()
 
 # ---- SAVE TO CSV ----
-if collected_data:
-    # generate headers from the first page
-    headers = driver.find_elements(By.CSS_SELECTOR, "table thead th")
-    header_text = [h.text.strip() for h in headers] + ["Market Link"]  # add extra column for link
-
-    df = pd.DataFrame(collected_data, columns=header_text)
-    df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8-sig")
-    print(f"Saved {len(df)} rows to {OUTPUT_CSV}")
+if total_rows:
+    print(f"Saved {total_rows} rows to {OUTPUT_CSV}")
 else:
     print("No data found!")
 
