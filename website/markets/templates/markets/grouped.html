@@ -1,181 +1,28 @@
 <!doctype html>
 <html lang="en">
 <head>
+	{% load static %}
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>PolyPredict · Grouped Markets</title>
-	<style>
-		:root {
-			color-scheme: light;
-			--bg: #f4f7fb;
-			--panel: #ffffff;
-			--text: #0f172a;
-			--muted: #64748b;
-			--line: #e2e8f0;
-			--accent: #2563eb;
-			--accent-soft: #dbeafe;
-		}
-		* { box-sizing: border-box; }
-		body {
-			margin: 0;
-			font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-			background: linear-gradient(180deg, #eef4ff 0%, var(--bg) 100%);
-			color: var(--text);
-		}
-		.wrapper {
-			max-width: 1200px;
-			margin: 2rem auto;
-			padding: 0 1rem;
-		}
-		.hero {
-			background: var(--panel);
-			border: 1px solid var(--line);
-			border-radius: 14px;
-			padding: 1.25rem 1.5rem;
-			box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
-			margin-bottom: 1rem;
-		}
-		h1 {
-			margin: 0;
-			font-size: 1.9rem;
-		}
-		.subtitle {
-			margin-top: 0.45rem;
-			color: var(--muted);
-			font-size: 0.95rem;
-		}
-		.nav {
-			margin-top: 0.9rem;
-			display: flex;
-			gap: 0.25rem;
-			border-bottom: 1px solid var(--line);
-		}
-		.nav a {
-			text-decoration: none;
-			font-size: 0.86rem;
-			font-weight: 700;
-			color: var(--muted);
-			padding: 0.55rem 0.8rem;
-			border-radius: 10px 10px 0 0;
-			border: 1px solid transparent;
-			border-bottom: none;
-			margin-bottom: -1px;
-		}
-		.nav a:hover {
-			color: var(--accent);
-			background: #f8fafc;
-		}
-		.nav a.active {
-			color: var(--accent);
-			background: #ffffff;
-			border-color: var(--line);
-		}
-		.table-wrap {
-			background: var(--panel);
-			border: 1px solid var(--line);
-			border-radius: 14px;
-			overflow: auto;
-			box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
-		}
-		table {
-			width: 100%;
-			border-collapse: collapse;
-			font-size: 0.93rem;
-		}
-		thead th {
-			position: sticky;
-			top: 0;
-			background: #f8fafc;
-			border-bottom: 1px solid var(--line);
-			text-transform: uppercase;
-			font-size: 0.72rem;
-			letter-spacing: 0.06em;
-			color: var(--muted);
-			padding: 0.75rem;
-			text-align: left;
-			white-space: nowrap;
-		}
-		tbody td {
-			padding: 0.75rem;
-			border-bottom: 1px solid #f1f5f9;
-			vertical-align: top;
-		}
-		tbody tr:hover {
-			background: #f8fbff;
-		}
-		.market-link {
-			color: var(--accent);
-			text-decoration: none;
-			font-weight: 600;
-		}
-		.market-link:hover { text-decoration: underline; }
-		.numeric {
-			font-variant-numeric: tabular-nums;
-			white-space: nowrap;
-		}
-		.trader-select {
-			width: min(520px, 100%);
-		}
-		.dropdown {
-			border: 1px solid var(--line);
-			border-radius: 10px;
-			background: #fff;
-		}
-		details.dropdown > summary {
-			cursor: pointer;
-			list-style: none;
-			padding: 0.55rem 0.7rem;
-			font-size: 0.86rem;
-			font-weight: 600;
-			color: var(--muted);
-		}
-		details.dropdown > summary::-webkit-details-marker {
-			display: none;
-		}
-		details.dropdown > summary::after {
-			content: "▾";
-			float: right;
-			color: var(--accent);
-		}
-		details.dropdown[open] > summary {
-			border-bottom: 1px solid var(--line);
-		}
-		.trader-table {
-			width: 100%;
-			border-collapse: collapse;
-			font-size: 0.84rem;
-		}
-		.trader-table th,
-		.trader-table td {
-			padding: 0.45rem 0.6rem;
-			border-bottom: 1px solid #f1f5f9;
-		}
-		.trader-table thead th {
-			position: static;
-			background: #f8fafc;
-			font-size: 0.68rem;
-			padding-top: 0.5rem;
-			padding-bottom: 0.5rem;
-		}
-		.trader-table tr:last-child td {
-			border-bottom: none;
-		}
-		.empty {
-			padding: 2rem;
-			color: var(--muted);
-		}
-	</style>
+	<link rel="stylesheet" href="{% static 'markets/styles.css' %}">
+	<link rel="icon" type="image/png" href="{% static 'markets/logo.png' %}">
 </head>
-<body>
+<body class="grouped-page">
 	<div class="wrapper">
 		<header class="hero">
-			<h1>PolyPredict</h1>
+			<div class="brand-row">
+				<img class="site-logo" src="{% static 'markets/logo.png' %}" alt="PolyPredict logo">
+				<h1>PolyPredict</h1>
+			</div>
+			<h4 class="tagline">Polymarket Machine Learning Insider Trading Predictor</h4>
 			<div class="subtitle">
 				{{ market_count }} markets with grouped trader predictions · Updated {{ last_updated|date:"Y-m-d H:i" }} UTC
 			</div>
 			<nav class="nav">
 				<a href="/">Trader Predictions</a>
 				<a href="/markets/" class="active">Grouped Markets</a>
+				<a href="/stats/">ML Model Stats</a>
 			</nav>
 		</header>
 
@@ -186,8 +33,10 @@
 					<tr>
 						<th>#</th>
 						<th>Market</th>
-						<th>Market Score (sqrt(sum(x_i^2)))</th>
+						<th>Market Score</th>
 						<th>Traders</th>
+						<th>Consensus</th>
+						<th>Current Yes Price</th>
 						<th>Trader Predictions</th>
 					</tr>
 				</thead>
@@ -200,8 +49,14 @@
 								{{ market.market }}
 							</a>
 						</td>
-						<td class="numeric">{{ market.market_score_pct|floatformat:2 }}%</td>
+						<td class="numeric">{{ market.market_score|floatformat:2 }}</td>
 						<td class="numeric">{{ market.trader_count }}</td>
+						<td>
+							<span class="badge {% if market.consensus_outcome == 'YES' %}yes{% else %}no{% endif %}">
+								{{ market.consensus_outcome }}
+							</span>
+						</td>
+						<td class="numeric" data-current-yes-price data-market-url="{{ market.market_url }}">{{ market.current_yes_price_usd }}</td>
 						<td>
 							<details class="dropdown trader-select">
 								<summary>View {{ market.trader_count }} traders</summary>
@@ -210,7 +65,6 @@
 										<tr>
 											<th>Trader</th>
 											<th>Outcome</th>
-											<th>Probability</th>
 											<th>Confidence</th>
 										</tr>
 									</thead>
@@ -218,8 +72,11 @@
 										{% for trader in market.traders %}
 										<tr>
 											<td>{{ trader.name }}</td>
-											<td>{{ trader.outcome }}</td>
-											<td class="numeric">{{ trader.probability_pct|floatformat:2 }}%</td>
+											<td>
+												<span class="badge {% if trader.outcome == 'YES' %}yes{% else %}no{% endif %}">
+													{{ trader.outcome }}
+												</span>
+											</td>
 											<td class="numeric">{{ trader.confidence_pct|floatformat:2 }}%</td>
 										</tr>
 										{% endfor %}
@@ -236,5 +93,52 @@
 			{% endif %}
 		</section>
 	</div>
+	<script>
+		(function () {
+			const priceCells = Array.from(document.querySelectorAll('[data-current-yes-price]'));
+			if (!priceCells.length) {
+				return;
+			}
+			const FAST_INTERVAL_MS = 5000;
+			const SLOW_INTERVAL_MS = 30000;
+
+			const updatePrices = async () => {
+				let hasMissingPrices = priceCells.some(
+					(cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
+				);
+				try {
+					const response = await fetch('/api/current-yes-prices/', { cache: 'no-store' });
+					if (!response.ok) {
+						return hasMissingPrices;
+					}
+					const payload = await response.json();
+					const prices = payload && payload.prices ? payload.prices : {};
+
+					for (const cell of priceCells) {
+						const marketUrl = cell.getAttribute('data-market-url') || '';
+						const priceText = prices[marketUrl];
+						if (priceText) {
+							cell.textContent = priceText;
+						}
+					}
+				} catch (_error) {
+					return true;
+				}
+
+				hasMissingPrices = priceCells.some(
+					(cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
+				);
+				return hasMissingPrices;
+			};
+
+			const pollLoop = async () => {
+				const hasMissingPrices = await updatePrices();
+				const nextDelay = hasMissingPrices ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS;
+				window.setTimeout(pollLoop, nextDelay);
+			};
+
+			pollLoop();
+		})();
+	</script>
 </body>
 </html>

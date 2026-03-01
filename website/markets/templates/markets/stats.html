@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+	{% load static %}
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>PolyPredict · Stats</title>
+	<link rel="stylesheet" href="{% static 'markets/styles.css' %}">
+	<link rel="icon" type="image/png" href="{% static 'markets/logo.png' %}">
+</head>
+<body class="stats-page">
+	<div class="wrapper">
+		<header class="hero">
+			<div class="brand-row">
+				<img class="site-logo" src="{% static 'markets/logo.png' %}" alt="PolyPredict logo">
+				<h1>PolyPredict</h1>
+			</div>
+			<h4 class="tagline">Polymarket Machine Learning Insider Trading Predictor</h4>
+			<div class="subtitle">
+				Model statistics from {{ stats_path }} · Updated {{ last_updated|date:"Y-m-d H:i" }} UTC
+			</div>
+			<nav class="nav">
+				<a href="/">Trader Predictions</a>
+				<a href="/markets/">Grouped Markets</a>
+				<a href="/stats/" class="active">ML Model Stats</a>
+			</nav>
+		</header>
+
+		<section class="stats-grid">
+			{% for item in summary_items %}
+			<article class="stat-card">
+				<div class="stat-label">{{ item.label }}</div>
+				<div class="stat-value">{{ item.value }}</div>
+			</article>
+			{% endfor %}
+		</section>
+
+		<section class="table-wrap section-block">
+			<div class="section-title">Accuracy by confidence threshold</div>
+			{% if threshold_rows %}
+			<table>
+				<thead>
+					<tr>
+						<th>Threshold</th>
+						<th>Selected</th>
+						<th>Coverage</th>
+						<th>Accuracy</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in threshold_rows %}
+					<tr>
+						<td class="numeric">{{ row.threshold }}</td>
+						<td class="numeric">{{ row.selected }}</td>
+						<td class="numeric">{{ row.coverage }}</td>
+						<td class="numeric">{{ row.accuracy }}</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			{% else %}
+				<div class="empty">No confidence-threshold table found in stats file.</div>
+			{% endif %}
+		</section>
+
+		<section class="table-wrap section-block">
+			<div class="section-title">Saved artifacts</div>
+			{% if artifacts %}
+			<table>
+				<thead>
+					<tr>
+						<th>Artifact</th>
+						<th>Path</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for artifact in artifacts %}
+					<tr>
+						<td>{{ artifact.label }}</td>
+						<td class="mono">{{ artifact.value }}</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			{% else %}
+				<div class="empty">No saved artifact lines found in stats file.</div>
+			{% endif %}
+		</section>
+
+		<section class="table-wrap section-block">
+			<div class="section-title">Training features ({{ feature_count }})</div>
+			<div class="subtitle">Loaded from {{ feature_source }}</div>
+			{% if feature_names %}
+			<table>
+				<thead>
+					<tr>
+						<th>#</th>
+						<th>Feature</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for feature_name in feature_names %}
+					<tr>
+						<td class="numeric">{{ forloop.counter }}</td>
+						<td class="mono">{{ feature_name }}</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			{% else %}
+				<div class="empty">No feature list found in model metadata.</div>
+			{% endif %}
+		</section>
+	</div>
+</body>
+</html>
