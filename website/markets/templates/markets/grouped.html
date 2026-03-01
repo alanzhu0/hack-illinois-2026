@@ -1,144 +1,157 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-	{% load static %}
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>PolyPredict · Grouped Markets</title>
-	<link rel="stylesheet" href="{% static 'markets/styles.css' %}">
-	<link rel="icon" type="image/png" href="{% static 'markets/logo.png' %}">
+    {% load static %}
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PolyPredict · Grouped Markets</title>
+    <link rel="stylesheet" href="{% static 'markets/styles.css' %}">
+    <link rel="icon" type="image/png" href="{% static 'markets/logo.png' %}">
 </head>
+
 <body class="grouped-page">
-	<div class="wrapper">
-		<header class="hero">
-			<div class="brand-row">
-				<img class="site-logo" src="{% static 'markets/logo.png' %}" alt="PolyPredict logo">
-				<h1>PolyPredict</h1>
-			</div>
-			<h4 class="tagline">Polymarket Machine Learning Insider Trading Predictor</h4>
-			<div class="subtitle">
-				{{ market_count }} markets with grouped trader predictions · Updated {{ last_updated|date:"Y-m-d H:i" }} UTC
-			</div>
-			<nav class="nav">
-				<a href="/">Trader Predictions</a>
-				<a href="/markets/" class="active">Grouped Markets</a>
-				<a href="/stats/">ML Model Stats</a>
-			</nav>
-		</header>
+    <div class="wrapper">
+        <header class="hero">
+            <div class="brand-row">
+                <img class="site-logo" src="{% static 'markets/logo.png' %}" alt="PolyPredict logo">
+                <h1>PolyPredict</h1>
+            </div>
+            <h4 class="tagline">Polymarket Machine Learning Insider Trading Predictor</h4>
+            <div class="subtitle">
+                {{ market_count }} markets with grouped trader predictions · Updated {{ last_updated|date:"Y-m-d H:i" }}
+                UTC
+            </div>
+            <nav class="nav">
+                <a href="/">Trader Predictions</a>
+                <a href="/markets/" class="active">Grouped Markets</a>
+                <a href="/stats/">ML Model Stats</a>
+            </nav>
+        </header>
 
-		<section class="table-wrap">
-			{% if markets %}
-			<table>
-				<thead>
-					<tr>
-						<th>#</th>
-						<th>Market</th>
-						<th>Market Score</th>
-						<th>Traders</th>
-						<th>Consensus</th>
-						<th>Current Yes Price</th>
-						<th>Trader Predictions</th>
-					</tr>
-				</thead>
-				<tbody>
-					{% for market in markets %}
-					<tr>
-						<td class="numeric">{{ forloop.counter }}</td>
-						<td>
-							<a class="market-link" href="{{ market.market_url }}" target="_blank" rel="noopener noreferrer">
-								{{ market.market }}
-							</a>
-						</td>
-						<td class="numeric">{{ market.market_score|floatformat:2 }}</td>
-						<td class="numeric">{{ market.trader_count }}</td>
-						<td>
-							<span class="badge {% if market.consensus_outcome == 'YES' %}yes{% else %}no{% endif %}">
-								{{ market.consensus_outcome }}
-							</span>
-						</td>
-						<td class="numeric" data-current-yes-price data-market-url="{{ market.market_url }}">{{ market.current_yes_price_usd }}</td>
-						<td>
-							<details class="dropdown trader-select">
-								<summary>View {{ market.trader_count }} traders</summary>
-								<table class="trader-table">
-									<thead>
-										<tr>
-											<th>Trader</th>
-											<th>Outcome</th>
-											<th>Confidence</th>
-										</tr>
-									</thead>
-									<tbody>
-										{% for trader in market.traders %}
-										<tr>
-											<td>{{ trader.name }}</td>
-											<td>
-												<span class="badge {% if trader.outcome == 'YES' %}yes{% else %}no{% endif %}">
-													{{ trader.outcome }}
-												</span>
-											</td>
-											<td class="numeric">{{ trader.confidence_pct|floatformat:2 }}%</td>
-										</tr>
-										{% endfor %}
-									</tbody>
-								</table>
-							</details>
-						</td>
-					</tr>
-					{% endfor %}
-				</tbody>
-			</table>
-			{% else %}
-				<div class="empty">No rows found in data/future_with_predictions.csv.</div>
-			{% endif %}
-		</section>
-	</div>
-	<script>
-		(function () {
-			const priceCells = Array.from(document.querySelectorAll('[data-current-yes-price]'));
-			if (!priceCells.length) {
-				return;
-			}
-			const FAST_INTERVAL_MS = 5000;
-			const SLOW_INTERVAL_MS = 30000;
+        <section class="table-wrap">
+            {% if markets %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Market</th>
+                        <th>Market Score</th>
+                        <th>Traders</th>
+                        <th>Consensus</th>
+                        <th>Current Yes Price</th>
+                        <th>Trader Predictions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for market in markets %}
+                    <tr>
+                        <td class="numeric">{{ forloop.counter }}</td>
+                        <td>
+                            <a class="market-link" href="{{ market.market_url }}" target="_blank"
+                                rel="noopener noreferrer">
+                                {{ market.market }}
+                            </a>
+                        </td>
+                        <td class="numeric">{{ market.market_score|floatformat:2 }}</td>
+                        <td class="numeric">{{ market.trader_count }}</td>
+                        <td>
+                            <span class="badge {% if market.consensus_outcome == 'YES' %}yes{% else %}no{% endif %}">
+                                {{ market.consensus_outcome }}
+                            </span>
+                        </td>
+                        <td class="numeric" data-current-yes-price data-market-url="{{ market.market_url }}">{{
+                            market.current_yes_price_usd }}</td>
+                        <td>
+                            <details class="dropdown trader-select">
+                                <summary>View {{ market.trader_count }} traders</summary>
+                                <table class="trader-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Trader</th>
+                                            <th>Outcome</th>
+                                            <th>Confidence</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for trader in market.traders %}
+                                        <tr>
+                                            <td>{{ trader.name }}</td>
+                                            <td>
+                                                <span
+                                                    class="badge {% if trader.outcome == 'YES' %}yes{% else %}no{% endif %}">
+                                                    {{ trader.outcome }}
+                                                </span>
+                                            </td>
+                                            <td class="numeric">{{ trader.confidence_pct|floatformat:2 }}%</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </details>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty">No rows found in data/future_with_predictions.csv.</div>
+            {% endif %}
+        </section>
+    </div>
+    <script>
+        (function () {
+            if (!document.querySelector('[data-current-yes-price]')) {
+                return;
+            }
+            const FAST_INTERVAL_MS = 5000;
+            const SLOW_INTERVAL_MS = 30000;
 
-			const updatePrices = async () => {
-				let hasMissingPrices = priceCells.some(
-					(cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
-				);
-				try {
-					const response = await fetch('/api/current-yes-prices/', { cache: 'no-store' });
-					if (!response.ok) {
-						return hasMissingPrices;
-					}
-					const payload = await response.json();
-					const prices = payload && payload.prices ? payload.prices : {};
+            const updatePrices = async () => {
+                let priceCells = Array.from(document.querySelectorAll('[data-current-yes-price]'));
+                let hasMissingPrices = priceCells.some(
+                    (cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
+                );
+                try {
+                    const response = await fetch('/api/current-yes-prices/', { cache: 'no-store' });
+                    if (!response.ok) {
+                        return hasMissingPrices;
+                    }
+                    const payload = await response.json();
+                    const prices = payload && payload.prices ? payload.prices : {};
 
-					for (const cell of priceCells) {
-						const marketUrl = cell.getAttribute('data-market-url') || '';
-						const priceText = prices[marketUrl];
-						if (priceText) {
-							cell.textContent = priceText;
-						}
-					}
-				} catch (_error) {
-					return true;
-				}
+                    for (const cell of priceCells) {
+                        const marketUrl = cell.getAttribute('data-market-url') || '';
+                        const priceText = prices[marketUrl];
+                        if (priceText) {
+                            cell.textContent = priceText;
+                        } else {
+                            const row = cell.closest('tr');
+                            if (row) {
+                                row.remove();
+                            }
+                        }
+                    }
+                } catch (_error) {
+                    return true;
+                }
 
-				hasMissingPrices = priceCells.some(
-					(cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
-				);
-				return hasMissingPrices;
-			};
+                priceCells = Array.from(document.querySelectorAll('[data-current-yes-price]'));
+                hasMissingPrices = priceCells.some(
+                    (cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
+                );
+                return hasMissingPrices;
+            };
 
-			const pollLoop = async () => {
-				const hasMissingPrices = await updatePrices();
-				const nextDelay = hasMissingPrices ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS;
-				window.setTimeout(pollLoop, nextDelay);
-			};
+            const pollLoop = async () => {
+                const hasMissingPrices = await updatePrices();
+                const nextDelay = hasMissingPrices ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS;
+                window.setTimeout(pollLoop, nextDelay);
+            };
 
-			pollLoop();
-		})();
-	</script>
+            pollLoop();
+        })();
+    </script>
 </body>
+
 </html>

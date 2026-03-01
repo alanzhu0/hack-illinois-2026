@@ -1,120 +1,131 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-	{% load static %}
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>PolyPredict</title>
-	<link rel="icon" type="image/png" href="{% static 'markets/logo.png' %}">
-	<link rel="stylesheet" href="{% static 'markets/styles.css' %}">
+    {% load static %}
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PolyPredict</title>
+    <link rel="icon" type="image/png" href="{% static 'markets/logo.png' %}">
+    <link rel="stylesheet" href="{% static 'markets/styles.css' %}">
 </head>
+
 <body>
-	<div class="wrapper">
-		<header class="hero">
-			<div class="brand-row">
-				<img class="site-logo" src="{% static 'markets/logo.png' %}" alt="PolyPredict logo">
-				<h1>PolyPredict</h1>
-			</div>
-			<h4 class="tagline">Polymarket Machine Learning Insider Trading Predictor</h4>
-			<div class="subtitle">
-				{{ row_count }} predictions ranked by model confidence · Updated {{ last_updated|date:"Y-m-d H:i" }} UTC
-			</div>
-			<nav class="nav">
-				<a href="/" class="active">Trader Predictions</a>
-				<a href="/markets/">Grouped Markets</a>
-				<a href="/stats/">ML Model Stats</a>
-			</nav>
-		</header>
+    <div class="wrapper">
+        <header class="hero">
+            <div class="brand-row">
+                <img class="site-logo" src="{% static 'markets/logo.png' %}" alt="PolyPredict logo">
+                <h1>PolyPredict</h1>
+            </div>
+            <h4 class="tagline">Polymarket Machine Learning Insider Trading Predictor</h4>
+            <div class="subtitle">
+                {{ row_count }} predictions ranked by model confidence · Updated {{ last_updated|date:"Y-m-d H:i" }} UTC
+            </div>
+            <nav class="nav">
+                <a href="/" class="active">Trader Predictions</a>
+                <a href="/markets/">Grouped Markets</a>
+                <a href="/stats/">ML Model Stats</a>
+            </nav>
+        </header>
 
-		<section class="table-wrap">
-			{% if rows %}
-			<table>
-				<thead>
-					<tr>
-						<th>#</th>
-						<th>Market</th>
-						<th>Trader</th>
-						<th>Price</th>
-						<th>Size</th>
-						<th>Prediction</th>
-						<th>Current Yes Price</th>
-						<th>Confidence</th>
-					</tr>
-				</thead>
-				<tbody>
-					{% for row in rows %}
-					<tr>
-						<td class="rank numeric">{{ forloop.counter }}</td>
-						<td>
-							<a class="market-link" href="{{ row.market_url }}" target="_blank" rel="noopener noreferrer">
-								{{ row.market }}
-							</a>
-						</td>
-						<td>{{ row.name }}</td>
-						<td class="numeric">{{ row.price_usd }}</td>
-						<td class="numeric">{{ row.size_usd }}</td>
-						<td>
-							<span class="badge {% if row.outcome == 'YES' %}yes{% else %}no{% endif %}">
-								{{ row.outcome }}
-							</span>
-						</td>
-						<td class="numeric" data-current-yes-price data-market-url="{{ row.market_url }}">{{ row.current_yes_price_usd }}</td>
-						<td class="numeric">{{ row.confidence_pct|floatformat:2 }}%</td>
-					</tr>
-					{% endfor %}
-				</tbody>
-			</table>
-			{% else %}
-				<div class="empty">No rows found in data/future_with_predictions.csv.</div>
-			{% endif %}
-		</section>
-	</div>
-	<script>
-		(function () {
-			const priceCells = Array.from(document.querySelectorAll('[data-current-yes-price]'));
-			if (!priceCells.length) {
-				return;
-			}
-			const FAST_INTERVAL_MS = 5000;
-			const SLOW_INTERVAL_MS = 30000;
+        <section class="table-wrap">
+            {% if rows %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Market</th>
+                        <th>Trader</th>
+                        <th>Price</th>
+                        <th>Size</th>
+                        <th>Prediction</th>
+                        <th>Current Yes Price</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td class="rank numeric">{{ forloop.counter }}</td>
+                        <td>
+                            <a class="market-link" href="{{ row.market_url }}" target="_blank"
+                                rel="noopener noreferrer">
+                                {{ row.market }}
+                            </a>
+                        </td>
+                        <td>{{ row.name }}</td>
+                        <td class="numeric">{{ row.price_usd }}</td>
+                        <td class="numeric">{{ row.size_usd }}</td>
+                        <td>
+                            <span class="badge {% if row.outcome == 'YES' %}yes{% else %}no{% endif %}">
+                                {{ row.outcome }}
+                            </span>
+                        </td>
+                        <td class="numeric" data-current-yes-price data-market-url="{{ row.market_url }}">{{
+                            row.current_yes_price_usd }}</td>
+                        <td class="numeric">{{ row.confidence_pct|floatformat:2 }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty">No rows found in data/future_with_predictions.csv.</div>
+            {% endif %}
+        </section>
+    </div>
+    <script>
+        (function () {
+            if (!document.querySelector('[data-current-yes-price]')) {
+                return;
+            }
+            const FAST_INTERVAL_MS = 5000;
+            const SLOW_INTERVAL_MS = 30000;
 
-			const updatePrices = async () => {
-				let hasMissingPrices = priceCells.some(
-					(cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
-				);
-				try {
-					const response = await fetch('/api/current-yes-prices/', { cache: 'no-store' });
-					if (!response.ok) {
-						return hasMissingPrices;
-					}
-					const payload = await response.json();
-					const prices = payload && payload.prices ? payload.prices : {};
+            const updatePrices = async () => {
+                let priceCells = Array.from(document.querySelectorAll('[data-current-yes-price]'));
+                let hasMissingPrices = priceCells.some(
+                    (cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
+                );
+                try {
+                    const response = await fetch('/api/current-yes-prices/', { cache: 'no-store' });
+                    if (!response.ok) {
+                        return hasMissingPrices;
+                    }
+                    const payload = await response.json();
+                    const prices = payload && payload.prices ? payload.prices : {};
 
-					for (const cell of priceCells) {
-						const marketUrl = cell.getAttribute('data-market-url') || '';
-						const priceText = prices[marketUrl];
-						if (priceText) {
-							cell.textContent = priceText;
-						}
-					}
-				} catch (_error) {
-					return true;
-				}
+                    for (const cell of priceCells) {
+                        const marketUrl = cell.getAttribute('data-market-url') || '';
+                        const priceText = prices[marketUrl];
+                        if (priceText) {
+                            cell.textContent = priceText;
+                        } else {
+                            const row = cell.closest('tr');
+                            if (row) {
+                                row.remove();
+                            }
+                        }
+                    }
+                } catch (_error) {
+                    return true;
+                }
 
-				hasMissingPrices = priceCells.some(
-					(cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
-				);
-				return hasMissingPrices;
-			};
+                priceCells = Array.from(document.querySelectorAll('[data-current-yes-price]'));
+                hasMissingPrices = priceCells.some(
+                    (cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
+                );
+                return hasMissingPrices;
+            };
 
-			const pollLoop = async () => {
-				const hasMissingPrices = await updatePrices();
-				const nextDelay = hasMissingPrices ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS;
-				window.setTimeout(pollLoop, nextDelay);
-			};
+            const pollLoop = async () => {
+                const hasMissingPrices = await updatePrices();
+                const nextDelay = hasMissingPrices ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS;
+                window.setTimeout(pollLoop, nextDelay);
+            };
 
-			pollLoop();
-		})();
-	</script>
+            pollLoop();
+        })();
+    </script>
 </body>
+
 </html>
