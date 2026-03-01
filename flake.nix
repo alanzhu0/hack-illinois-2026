@@ -80,6 +80,9 @@
               numpy
               pandas
               torch
+
+              django
+              daphne
             ];
           };
         }
