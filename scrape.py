@@ -5,7 +5,6 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 
 # ---- CONFIG ----
 URL = "https://app.polysights.xyz/insider-finder"
@@ -44,7 +43,6 @@ except Exception as e:
     print("Table view button not found:", e)
 
 
-
 collected_data = []
 
 # ---- PAGINATION LOOP ----
@@ -67,6 +65,20 @@ while True:
         except:
             market_link = ""
         collected_data[-1].append(market_link)  # append link to last row
+
+    # ---- SAVE TO CSV ----
+    if collected_data:
+        # generate headers from the first page
+        headers = driver.find_elements(By.CSS_SELECTOR, "table thead th")
+        header_text = [h.text.strip() for h in headers] + [
+            "Market Link"
+        ]  # add extra column for link
+
+        df = pd.DataFrame(collected_data, columns=header_text)
+        df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8-sig")
+        print(f"Saved {len(df)} rows to {OUTPUT_CSV}")
+    else:
+        print("No data found!")
 
     # check for next page button
     try:
