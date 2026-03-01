@@ -104,7 +104,10 @@
 
 			const updatePrices = async () => {
 				let hasMissingPrices = priceCells.some(
-					(cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
+					(cell) => {
+						const text = (cell.textContent || '').trim().toLowerCase();
+						return text === '-' || text === 'n/a';
+					}
 				);
 				try {
 					const response = await fetch('/api/current-yes-prices/', { cache: 'no-store' });
@@ -126,7 +129,10 @@
 				}
 
 				hasMissingPrices = priceCells.some(
-					(cell) => (cell.textContent || '').trim().toLowerCase() === 'n/a'
+					(cell) => {
+						const text = (cell.textContent || '').trim().toLowerCase();
+						return text === '-' || text === 'n/a';
+					}
 				);
 				return hasMissingPrices;
 			};

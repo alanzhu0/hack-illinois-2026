@@ -282,7 +282,7 @@ def market_table(request):
 		live_yes_price = live_yes_price_by_url.get(market_url)
 		row["current_yes_price"] = live_yes_price
 		row["current_yes_price_usd"] = (
-			f"${live_yes_price:.2f}" if live_yes_price is not None else "n/a"
+			f"${live_yes_price:.2f}" if live_yes_price is not None else "-"
 		)
 	rows.sort(key=lambda item: item["confidence"], reverse=True)
 
@@ -552,7 +552,7 @@ def grouped_markets(request):
 				"consensus_probability": consensus_probability,
 				"consensus_outcome": consensus_outcome,
 				"current_yes_price": current_yes_price,
-				"current_yes_price_usd": f"${current_yes_price:.2f}" if current_yes_price is not None else "n/a",
+				"current_yes_price_usd": f"${current_yes_price:.2f}" if current_yes_price is not None else "-",
 				"traders": trader_rows,
 			}
 		)
