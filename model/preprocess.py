@@ -1,5 +1,6 @@
 import csv
 import re
+import shutil
 from pathlib import Path
 from typing import Dict, List
 
@@ -22,6 +23,24 @@ DURATION_MULTIPLIER_MINUTES = {
 	"h": 60,
 	"d": 1440,
 }
+
+MAGNITUDE_MULTIPLIERS = {
+	"k": 1_000,
+	"m": 1_000_000,
+	"b": 1_000_000_000,
+}
+
+MISSING_VALUE_TOKENS = {
+	"n/a",
+	"na",
+	"none",
+	"null",
+	"nan",
+	"-",
+	"--",
+}
+
+NUMBER_PATTERN = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?"
 
 
 def clean_header(header: str) -> str:
@@ -57,6 +76,15 @@ def convert_value(value: str) -> str:
 	if text == "":
 		return ""
 
+	if text.lower() in MISSING_VALUE_TOKENS:
+		return ""
+
+	parenthesized_negative = text.startswith("(") and text.endswith(")")
+	if parenthesized_negative:
+		text = text[1:-1].strip()
+
+	text = text.replace(",", "")
+
 	text = text.replace("$", "")
 
 	yes_no = normalize_yes_no(text)
@@ -73,16 +101,42 @@ def convert_value(value: str) -> str:
 		amount = float(duration_match.group(1))
 		unit = duration_match.group(2).lower()
 		minutes = amount * DURATION_MULTIPLIER_MINUTES[unit]
+		if parenthesized_negative and minutes > 0:
+			minutes *= -1
 		return format_number(minutes)
 
-	magnitude_match = re.fullmatch(r"(-?\d+(?:\.\d+)?)([kmb])", text, flags=re.IGNORECASE)
+	magnitude_match = re.fullmatch(rf"({NUMBER_PATTERN})([kmb])", text, flags=re.IGNORECASE)
 	if magnitude_match:
 		amount = float(magnitude_match.group(1))
 		unit = magnitude_match.group(2).lower()
-		multiplier = {"k": 1_000, "m": 1_000_000, "b": 1_000_000_000}[unit]
-		return format_number(amount * multiplier)
+		numeric_value = amount * MAGNITUDE_MULTIPLIERS[unit]
+		if parenthesized_negative and numeric_value > 0:
+			numeric_value *= -1
+		return format_number(numeric_value)
+
+	number_match = re.fullmatch(NUMBER_PATTERN, text, flags=re.IGNORECASE)
+	if number_match:
+		numeric_value = float(number_match.group(0))
+		if parenthesized_negative and numeric_value > 0:
+			numeric_value *= -1
+		return format_number(numeric_value)
 
 	return text
+
+
+def resolve_input_path(repo_root: Path, scrape_dir: Path) -> Path:
+	candidate_paths = [
+		scrape_dir / "insider_data.csv",
+		repo_root / "insider_data.csv",
+	]
+
+	for candidate in candidate_paths:
+		if candidate.exists():
+			return candidate
+
+	raise FileNotFoundError(
+		f"Could not find insider_data.csv in either {scrape_dir} or {repo_root}"
+	)
 
 
 def preprocess_csv(input_path: Path, output_path: Path, train_path: Path, future_path: Path) -> None:
@@ -94,49 +148,62 @@ def preprocess_csv(input_path: Path, output_path: Path, train_path: Path, future
 		cleaned_fieldnames = [clean_header(name) for name in reader.fieldnames]
 		reader.fieldnames = cleaned_fieldnames
 
-		fieldnames = [name for name in cleaned_fieldnames if name not in OUTPUT_DROP_COLUMNS]
+		model_fieldnames = [name for name in cleaned_fieldnames if name not in OUTPUT_DROP_COLUMNS]
+		future_fieldnames = cleaned_fieldnames
 
-		processed_rows: List[Dict[str, str]] = []
+		processed_rows_full: List[Dict[str, str]] = []
+		processed_rows_model: List[Dict[str, str]] = []
 		for raw_row in reader:
 			clean_row = {clean_header(key): value for key, value in raw_row.items()}
-			processed_row: Dict[str, str] = {}
+			processed_row_full: Dict[str, str] = {}
 			for key in cleaned_fieldnames:
-				if key in OUTPUT_DROP_COLUMNS:
-					continue
-				processed_row[key] = convert_value(clean_row.get(key, ""))
-			processed_rows.append(processed_row)
+				processed_row_full[key] = convert_value(clean_row.get(key, ""))
+			processed_rows_full.append(processed_row_full)
+			processed_rows_model.append({key: processed_row_full[key] for key in model_fieldnames})
 
 	with output_path.open("w", newline="", encoding="utf-8") as outfile:
-		writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+		writer = csv.DictWriter(outfile, fieldnames=model_fieldnames)
 		writer.writeheader()
-		writer.writerows(processed_rows)
+		writer.writerows(processed_rows_model)
 
-	train_rows = [row for row in processed_rows if (row.get("Outcome") or "").strip() != ""]
-	future_rows = [row for row in processed_rows if (row.get("Outcome") or "").strip() == ""]
+	train_rows = [row for row in processed_rows_model if (row.get("Outcome") or "").strip() != ""]
+	future_rows = [row for row in processed_rows_full if (row.get("Outcome") or "").strip() == ""]
 
 	with train_path.open("w", newline="", encoding="utf-8") as outfile:
-		writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+		writer = csv.DictWriter(outfile, fieldnames=model_fieldnames)
 		writer.writeheader()
 		writer.writerows(train_rows)
 
 	with future_path.open("w", newline="", encoding="utf-8") as outfile:
-		writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+		writer = csv.DictWriter(outfile, fieldnames=future_fieldnames)
 		writer.writeheader()
 		writer.writerows(future_rows)
 
-	print(f"Wrote {len(processed_rows)} rows to {output_path}")
+	print(f"Wrote {len(processed_rows_model)} rows to {output_path}")
 	print(f"Wrote {len(train_rows)} rows to {train_path}")
 	print(f"Wrote {len(future_rows)} rows to {future_path}")
 
 
 def main() -> None:
-	root = Path(__file__).resolve().parent.parent
-	input_path = root / "insider_data.csv"
-	preprocess_dir = Path(__file__).resolve().parent
-	output_path = preprocess_dir / "data_cleaned.csv"
-	train_path = preprocess_dir / "train.csv"
-	future_path = preprocess_dir / "future.csv"
+	repo_root = Path(__file__).resolve().parent.parent
+	model_dir = repo_root / "model"
+	data_dir = repo_root / "data"
+	scrape_dir = repo_root / "scrape"
+
+	input_path = resolve_input_path(repo_root, scrape_dir)
+	output_path = data_dir / "data_cleaned.csv"
+	train_path = data_dir / "train.csv"
+	future_path = data_dir / "future.csv"
 	preprocess_csv(input_path, output_path, train_path, future_path)
+
+	legacy_output_path = model_dir / "data_cleaned.csv"
+	legacy_train_path = model_dir / "train.csv"
+	legacy_future_path = model_dir / "future.csv"
+
+	shutil.copyfile(output_path, legacy_output_path)
+	shutil.copyfile(train_path, legacy_train_path)
+	shutil.copyfile(future_path, legacy_future_path)
+	print(f"Mirrored outputs to {model_dir}")
 
 
 if __name__ == "__main__":

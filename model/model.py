@@ -4,7 +4,7 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -13,6 +13,21 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 TARGET_COLUMN = "Outcome"
+
+TEXT_TO_BINARY = {
+	"0": 0.0,
+	"1": 1.0,
+	"false": 0.0,
+	"true": 1.0,
+	"no": 0.0,
+	"yes": 1.0,
+	"down": 0.0,
+	"up": 1.0,
+	"sell": 0.0,
+	"buy": 1.0,
+	"bear": 0.0,
+	"bull": 1.0,
+}
 
 
 def set_seed(seed: int) -> None:
@@ -30,12 +45,34 @@ def parse_numeric(value: str) -> float:
 	lower = text.lower()
 	if lower in {"n/a", "na", "none", "null", "nan"}:
 		return float("nan")
+	if lower in TEXT_TO_BINARY:
+		return float(TEXT_TO_BINARY[lower])
+
+	if text.endswith("%"):
+		text = text[:-1]
 
 	text = text.replace(",", "")
 	try:
 		return float(text)
 	except ValueError:
 		return float("nan")
+
+
+def parse_binary_target(value: str) -> Optional[float]:
+	text = (value or "").strip()
+	if text == "":
+		return None
+
+	lower = text.lower()
+	if lower in TEXT_TO_BINARY:
+		return float(TEXT_TO_BINARY[lower])
+
+	numeric = parse_numeric(text)
+	if np.isnan(numeric):
+		return None
+	if numeric in {0.0, 1.0}:
+		return float(numeric)
+	return 1.0 if numeric > 0 else 0.0
 
 
 def load_csv_dataset(path: Path, target_column: str) -> Tuple[np.ndarray, np.ndarray, List[str]]:
@@ -53,9 +90,10 @@ def load_csv_dataset(path: Path, target_column: str) -> Tuple[np.ndarray, np.nda
 
 		for row in reader:
 			target_text = (row.get(target_column) or "").strip()
-			if target_text == "":
+			target_value = parse_binary_target(target_text)
+			if target_value is None:
 				continue
-			target_values.append(float(target_text))
+			target_values.append(float(target_value))
 			feature_rows.append([parse_numeric(row.get(column, "")) for column in feature_columns])
 
 	features = np.array(feature_rows, dtype=np.float32)
@@ -114,31 +152,79 @@ def stratified_train_val_test_indices(
 def impute_and_scale(
 	train_x: np.ndarray,
 	val_x: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-	medians = np.nanmedian(train_x, axis=0)
+	test_x: Optional[np.ndarray] = None,
+	scaler: str = "standard",
+	clip_quantile: float = 0.995,
+) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+	if scaler not in {"standard", "robust"}:
+		raise ValueError("scaler must be either 'standard' or 'robust'")
+	if not 0.50 <= clip_quantile <= 1.0:
+		raise ValueError("clip_quantile must be between 0.50 and 1.0")
+
+	lower_bounds = np.nanquantile(train_x, 1.0 - clip_quantile, axis=0)
+	upper_bounds = np.nanquantile(train_x, clip_quantile, axis=0)
+	lower_bounds = np.where(np.isnan(lower_bounds), -1e9, lower_bounds)
+	upper_bounds = np.where(np.isnan(upper_bounds), 1e9, upper_bounds)
+
+	train_clipped = np.clip(train_x, lower_bounds, upper_bounds)
+	val_clipped = np.clip(val_x, lower_bounds, upper_bounds)
+	test_clipped = np.clip(test_x, lower_bounds, upper_bounds) if test_x is not None else None
+
+	medians = np.nanmedian(train_clipped, axis=0)
 	medians = np.where(np.isnan(medians), 0.0, medians)
 
-	train_filled = np.where(np.isnan(train_x), medians, train_x)
-	val_filled = np.where(np.isnan(val_x), medians, val_x)
+	train_filled = np.where(np.isnan(train_clipped), medians, train_clipped)
+	val_filled = np.where(np.isnan(val_clipped), medians, val_clipped)
+	test_filled = np.where(np.isnan(test_clipped), medians, test_clipped) if test_clipped is not None else None
 
-	means = train_filled.mean(axis=0)
-	stds = train_filled.std(axis=0)
-	stds = np.where(stds < 1e-6, 1.0, stds)
+	if scaler == "standard":
+		centers = train_filled.mean(axis=0)
+		scales = train_filled.std(axis=0)
+		scales = np.where(scales < 1e-6, 1.0, scales)
+	else:
+		centers = np.median(train_filled, axis=0)
+		q1 = np.quantile(train_filled, 0.25, axis=0)
+		q3 = np.quantile(train_filled, 0.75, axis=0)
+		scales = q3 - q1
+		scales = np.where(scales < 1e-6, 1.0, scales)
 
-	train_scaled = (train_filled - means) / stds
-	val_scaled = (val_filled - means) / stds
-	return train_scaled.astype(np.float32), val_scaled.astype(np.float32), medians.astype(np.float32), means.astype(np.float32), stds.astype(np.float32)
+	train_scaled = (train_filled - centers) / scales
+	val_scaled = (val_filled - centers) / scales
+	test_scaled = ((test_filled - centers) / scales).astype(np.float32) if test_filled is not None else None
+	return (
+		train_scaled.astype(np.float32),
+		val_scaled.astype(np.float32),
+		test_scaled,
+		medians.astype(np.float32),
+		centers.astype(np.float32),
+		scales.astype(np.float32),
+		lower_bounds.astype(np.float32),
+		upper_bounds.astype(np.float32),
+	)
+
+
+def make_activation(name: str) -> nn.Module:
+	if name == "relu":
+		return nn.ReLU()
+	if name == "gelu":
+		return nn.GELU()
+	if name == "silu":
+		return nn.SiLU()
+	if name == "leaky_relu":
+		return nn.LeakyReLU(negative_slope=0.1)
+	raise ValueError(f"Unknown activation: {name}")
 
 
 class BinaryMLP(nn.Module):
-	def __init__(self, input_dim: int, hidden_layers: Sequence[int], dropout: float) -> None:
+	def __init__(self, input_dim: int, hidden_layers: Sequence[int], dropout: float, activation: str, use_batch_norm: bool) -> None:
 		super().__init__()
 		layers: List[nn.Module] = []
 		current_dim = input_dim
 		for hidden_dim in hidden_layers:
 			layers.append(nn.Linear(current_dim, hidden_dim))
-			layers.append(nn.BatchNorm1d(hidden_dim))
-			layers.append(nn.ReLU())
+			if use_batch_norm:
+				layers.append(nn.BatchNorm1d(hidden_dim))
+			layers.append(make_activation(activation))
 			if dropout > 0:
 				layers.append(nn.Dropout(dropout))
 			current_dim = hidden_dim
@@ -175,13 +261,19 @@ def metrics_from_logits_at_threshold(logits: torch.Tensor, targets: torch.Tensor
 	}
 
 
-def find_best_threshold(logits: torch.Tensor, targets: torch.Tensor) -> Tuple[float, Dict[str, float]]:
+def find_best_threshold(logits: torch.Tensor, targets: torch.Tensor, objective: str = "f1") -> Tuple[float, Dict[str, float]]:
+	if objective not in {"accuracy", "f1"}:
+		raise ValueError("objective must be either 'accuracy' or 'f1'")
+
 	best_threshold = 0.5
 	best_metrics = metrics_from_logits_at_threshold(logits, targets, best_threshold)
 
 	for threshold in np.linspace(0.2, 0.8, 121):
 		metrics = metrics_from_logits_at_threshold(logits, targets, float(threshold))
-		if metrics["f1"] > best_metrics["f1"]:
+		if (
+			metrics[objective] > best_metrics[objective]
+			or (metrics[objective] == best_metrics[objective] and metrics["f1"] > best_metrics["f1"])
+		):
 			best_metrics = metrics
 			best_threshold = float(threshold)
 
@@ -191,9 +283,17 @@ def find_best_threshold(logits: torch.Tensor, targets: torch.Tensor) -> Tuple[fl
 @dataclass
 class TrainConfig:
 	hidden_layers: Tuple[int, ...]
+	activation: str
+	use_batch_norm: bool
 	dropout: float
 	learning_rate: float
 	weight_decay: float
+
+
+@dataclass
+class PreprocessConfig:
+	scaler: str
+	clip_quantile: float
 
 
 def collect_logits_and_targets(model: nn.Module, data_loader: DataLoader, device: torch.device) -> Tuple[float, torch.Tensor, torch.Tensor]:
@@ -229,6 +329,7 @@ def train_one_model(
 	seed: int,
 	epochs: int,
 	batch_size: int,
+	threshold_objective: str = "accuracy",
 ) -> Tuple[nn.Module, Dict[str, float], float]:
 	set_seed(seed)
 
@@ -238,7 +339,13 @@ def train_one_model(
 	train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 	val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-	model = BinaryMLP(input_dim=train_x.shape[1], hidden_layers=config.hidden_layers, dropout=config.dropout).to(device)
+	model = BinaryMLP(
+		input_dim=train_x.shape[1],
+		hidden_layers=config.hidden_layers,
+		dropout=config.dropout,
+		activation=config.activation,
+		use_batch_norm=config.use_batch_norm,
+	).to(device)
 
 	positive = float(train_y.sum())
 	negative = float(len(train_y) - positive)
@@ -252,7 +359,7 @@ def train_one_model(
 	)
 
 	best_state: Dict[str, torch.Tensor] = {}
-	best_f1 = -1.0
+	best_score = -1.0
 	best_threshold = 0.5
 	patience = 20
 	epochs_without_improvement = 0
@@ -273,9 +380,9 @@ def train_one_model(
 		scheduler.step()
 
 		_, val_logits, val_targets = collect_logits_and_targets(model, val_loader, device)
-		candidate_threshold, val_metrics = find_best_threshold(val_logits, val_targets)
-		if val_metrics["f1"] > best_f1:
-			best_f1 = val_metrics["f1"]
+		candidate_threshold, val_metrics = find_best_threshold(val_logits, val_targets, objective=threshold_objective)
+		if val_metrics[threshold_objective] > best_score:
+			best_score = val_metrics[threshold_objective]
 			best_threshold = candidate_threshold
 			best_state = {name: parameter.detach().cpu().clone() for name, parameter in model.state_dict().items()}
 			epochs_without_improvement = 0
@@ -290,8 +397,16 @@ def train_one_model(
 	return model, final_metrics, best_threshold
 
 
-def apply_impute_scale(features: np.ndarray, medians: np.ndarray, means: np.ndarray, stds: np.ndarray) -> np.ndarray:
-	filled = np.where(np.isnan(features), medians, features)
+def apply_impute_scale(
+	features: np.ndarray,
+	medians: np.ndarray,
+	means: np.ndarray,
+	stds: np.ndarray,
+	lower_bounds: np.ndarray,
+	upper_bounds: np.ndarray,
+) -> np.ndarray:
+	clipped = np.clip(features, lower_bounds, upper_bounds)
+	filled = np.where(np.isnan(clipped), medians, clipped)
 	return ((filled - means) / stds).astype(np.float32)
 
 
@@ -303,6 +418,8 @@ def predict_csv(
 	medians: np.ndarray,
 	means: np.ndarray,
 	stds: np.ndarray,
+	lower_bounds: np.ndarray,
+	upper_bounds: np.ndarray,
 	threshold: float,
 	device: torch.device,
 ) -> None:
@@ -320,8 +437,11 @@ def predict_csv(
 	for row in rows:
 		feature_rows.append([parse_numeric(row.get(column, "")) for column in feature_columns])
 
+	if len(feature_rows) == 0:
+		return
+
 	features = np.array(feature_rows, dtype=np.float32)
-	features = apply_impute_scale(features, medians, means, stds)
+	features = apply_impute_scale(features, medians, means, stds, lower_bounds, upper_bounds)
 
 	model.eval()
 	with torch.no_grad():
@@ -347,9 +467,9 @@ def predict_csv(
 
 def main() -> None:
 	parser = argparse.ArgumentParser(description="Train a PyTorch binary classifier for Outcome")
-	parser.add_argument("--train", default="train.csv", help="Path to training CSV")
-	parser.add_argument("--future", default="future.csv", help="Path to future CSV for inference")
-	parser.add_argument("--future-out", default="future_with_predictions.csv", help="Output CSV for future predictions")
+	parser.add_argument("--train", default="../data/train.csv", help="Path to training CSV")
+	parser.add_argument("--future", default="../data/future.csv", help="Path to future CSV for inference")
+	parser.add_argument("--future-out", default="../data/future_with_predictions.csv", help="Output CSV for future predictions")
 	parser.add_argument("--model-out", default="model.pt", help="Path to save trained model checkpoint")
 	parser.add_argument("--meta-out", default="model_meta.json", help="Path to save preprocessing metadata")
 	parser.add_argument("--seed", type=int, default=42)
@@ -384,54 +504,94 @@ def main() -> None:
 	val_y = targets[val_indices]
 	test_y = targets[test_indices]
 
-	train_x, val_x, medians, means, stds = impute_and_scale(train_x_raw, val_x_raw)
-	test_x = apply_impute_scale(test_x_raw, medians, means, stds)
+	preprocess_candidates = [
+		PreprocessConfig(scaler="standard", clip_quantile=0.995),
+		PreprocessConfig(scaler="standard", clip_quantile=0.99),
+		PreprocessConfig(scaler="robust", clip_quantile=0.995),
+		PreprocessConfig(scaler="robust", clip_quantile=0.99),
+	]
 
 	candidates = [
-		TrainConfig(hidden_layers=(128, 64, 32), dropout=0.20, learning_rate=8e-4, weight_decay=2e-3),
-		TrainConfig(hidden_layers=(128, 64, 32), dropout=0.15, learning_rate=1e-3, weight_decay=1.5e-3),
-		TrainConfig(hidden_layers=(128, 64, 32), dropout=0.25, learning_rate=6e-4, weight_decay=3e-3),
-		TrainConfig(hidden_layers=(128, 64, 32), dropout=0.10, learning_rate=1.2e-3, weight_decay=1e-3),
+		TrainConfig(hidden_layers=(128, 64, 32), activation="relu", use_batch_norm=True, dropout=0.20, learning_rate=8e-4, weight_decay=2e-3),
+		TrainConfig(hidden_layers=(128, 64, 32), activation="gelu", use_batch_norm=True, dropout=0.15, learning_rate=1e-3, weight_decay=1.5e-3),
+		TrainConfig(hidden_layers=(192, 96, 48), activation="relu", use_batch_norm=True, dropout=0.20, learning_rate=7e-4, weight_decay=2e-3),
+		TrainConfig(hidden_layers=(192, 96, 48), activation="silu", use_batch_norm=True, dropout=0.20, learning_rate=8e-4, weight_decay=1.5e-3),
+		TrainConfig(hidden_layers=(160, 80, 40), activation="leaky_relu", use_batch_norm=False, dropout=0.25, learning_rate=1e-3, weight_decay=3e-3),
+		TrainConfig(hidden_layers=(256, 128, 64), activation="gelu", use_batch_norm=True, dropout=0.25, learning_rate=6e-4, weight_decay=2e-3),
 	]
 
 	best_model = None
 	best_metrics: Dict[str, float] = {}
 	best_config = None
+	best_preprocess = None
+	best_medians = None
+	best_means = None
+	best_stds = None
+	best_lower_bounds = None
+	best_upper_bounds = None
+	best_test_x = None
 	best_threshold = 0.5
 
-	for config in candidates:
-		model, metrics, threshold = train_one_model(
-			train_x=train_x,
-			train_y=train_y,
-			val_x=val_x,
-			val_y=val_y,
-			config=config,
-			device=device,
-			seed=args.seed,
-			epochs=args.epochs,
-			batch_size=args.batch_size,
-		)
-		print(
-			"Config",
-			config,
-			"->",
-			"accuracy=", f"{metrics['accuracy']:.4f}",
-			"precision=", f"{metrics['precision']:.4f}",
-			"recall=", f"{metrics['recall']:.4f}",
-			"f1=", f"{metrics['f1']:.4f}",
-			"threshold=", f"{threshold:.3f}",
+	for preprocess in preprocess_candidates:
+		train_x, val_x, test_x, medians, means, stds, lower_bounds, upper_bounds = impute_and_scale(
+			train_x_raw,
+			val_x_raw,
+			test_x_raw,
+			scaler=preprocess.scaler,
+			clip_quantile=preprocess.clip_quantile,
 		)
 
-		if not best_metrics or metrics["f1"] > best_metrics["f1"]:
-			best_model = model
-			best_metrics = metrics
-			best_config = config
-			best_threshold = threshold
+		for config in candidates:
+			model, metrics, threshold = train_one_model(
+				train_x=train_x,
+				train_y=train_y,
+				val_x=val_x,
+				val_y=val_y,
+				config=config,
+				device=device,
+				seed=args.seed,
+				epochs=args.epochs,
+				batch_size=args.batch_size,
+				threshold_objective="accuracy",
+			)
+			print(
+				"Preprocess",
+				preprocess,
+				"Config",
+				config,
+				"->",
+				"accuracy=", f"{metrics['accuracy']:.4f}",
+				"precision=", f"{metrics['precision']:.4f}",
+				"recall=", f"{metrics['recall']:.4f}",
+				"f1=", f"{metrics['f1']:.4f}",
+				"threshold=", f"{threshold:.3f}",
+			)
 
-	if best_model is None or best_config is None:
+			if (
+				not best_metrics
+				or metrics["accuracy"] > best_metrics["accuracy"]
+				or (metrics["accuracy"] == best_metrics["accuracy"] and metrics["f1"] > best_metrics["f1"])
+			):
+				best_model = model
+				best_metrics = metrics
+				best_config = config
+				best_preprocess = preprocess
+				best_threshold = threshold
+				best_medians = medians
+				best_means = means
+				best_stds = stds
+				best_lower_bounds = lower_bounds
+				best_upper_bounds = upper_bounds
+				best_test_x = test_x
+
+	if best_model is None or best_config is None or best_preprocess is None:
 		raise RuntimeError("Model training failed to produce a valid candidate")
+	if best_test_x is None:
+		raise RuntimeError("Preprocessing failed to produce test features")
+	if best_medians is None or best_means is None or best_stds is None or best_lower_bounds is None or best_upper_bounds is None:
+		raise RuntimeError("Best preprocessing parameters were not captured")
 
-	test_dataset = TensorDataset(torch.from_numpy(test_x), torch.from_numpy(test_y))
+	test_dataset = TensorDataset(torch.from_numpy(best_test_x), torch.from_numpy(test_y))
 	test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 	_, test_metrics = evaluate(best_model, test_loader, device, threshold=best_threshold)
 
@@ -439,11 +599,17 @@ def main() -> None:
 		{
 			"state_dict": best_model.state_dict(),
 			"feature_columns": feature_columns,
-			"medians": medians,
-			"means": means,
-			"stds": stds,
+			"medians": best_medians,
+			"means": best_means,
+			"stds": best_stds,
+			"lower_bounds": best_lower_bounds,
+			"upper_bounds": best_upper_bounds,
 			"hidden_layers": best_config.hidden_layers,
+			"activation": best_config.activation,
+			"use_batch_norm": best_config.use_batch_norm,
 			"dropout": best_config.dropout,
+			"scaler": best_preprocess.scaler,
+			"clip_quantile": best_preprocess.clip_quantile,
 			"threshold": best_threshold,
 		},
 		model_out_path,
@@ -465,9 +631,15 @@ def main() -> None:
 		"decision_threshold": best_threshold,
 		"best_config": {
 			"hidden_layers": list(best_config.hidden_layers),
+			"activation": best_config.activation,
+			"use_batch_norm": best_config.use_batch_norm,
 			"dropout": best_config.dropout,
 			"learning_rate": best_config.learning_rate,
 			"weight_decay": best_config.weight_decay,
+		},
+		"best_preprocessing": {
+			"scaler": best_preprocess.scaler,
+			"clip_quantile": best_preprocess.clip_quantile,
 		},
 		"device": str(device),
 	}
@@ -479,9 +651,11 @@ def main() -> None:
 		input_path=future_path,
 		output_path=future_out_path,
 		feature_columns=feature_columns,
-		medians=medians,
-		means=means,
-		stds=stds,
+		medians=best_medians,
+		means=best_means,
+		stds=best_stds,
+		lower_bounds=best_lower_bounds,
+		upper_bounds=best_upper_bounds,
 		threshold=best_threshold,
 		device=device,
 	)

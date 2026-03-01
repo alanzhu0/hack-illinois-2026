@@ -1,36 +1,42 @@
 {
-  "train_rows": 11172,
-  "train_positive": 6728,
-  "train_negative": 4444,
+  "train_rows": 11883,
+  "train_positive": 6282,
+  "train_negative": 5601,
   "split": {
-    "train_rows": 7822,
-    "validation_rows": 1675,
-    "test_rows": 1675,
+    "train_rows": 8319,
+    "validation_rows": 1782,
+    "test_rows": 1782,
     "val_ratio": 0.15,
     "test_ratio": 0.15
   },
   "validation_metrics": {
-    "accuracy": 0.8370149253731344,
-    "precision": 0.8357664233576643,
-    "recall": 0.9078295341922695,
-    "f1": 0.8703087885985749
+    "accuracy": 0.8260381593714927,
+    "precision": 0.8383297644539615,
+    "recall": 0.8312101910828026,
+    "f1": 0.8347547974413647
   },
   "test_metrics": {
-    "accuracy": 0.8208955223880597,
-    "precision": 0.8341187558906692,
-    "recall": 0.8771060455896927,
-    "f1": 0.855072463768116
+    "accuracy": 0.824354657687991,
+    "precision": 0.8328042328042328,
+    "recall": 0.8354564755838642,
+    "f1": 0.8341282458929519
   },
-  "decision_threshold": 0.36000000000000004,
+  "decision_threshold": 0.43500000000000005,
   "best_config": {
     "hidden_layers": [
-      128,
-      64,
-      32
+      192,
+      96,
+      48
     ],
-    "dropout": 0.1,
-    "learning_rate": 0.0012,
-    "weight_decay": 0.001
+    "activation": "silu",
+    "use_batch_norm": true,
+    "dropout": 0.2,
+    "learning_rate": 0.0008,
+    "weight_decay": 0.0015
+  },
+  "best_preprocessing": {
+    "scaler": "standard",
+    "clip_quantile": 0.99
   },
   "device": "cpu"
 }

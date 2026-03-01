@@ -1,0 +1,30 @@
+Best config used: TrainConfig(hidden_layers=(192, 96, 48), activation='silu', use_batch_norm=True, dropout=0.2, learning_rate=0.0008, weight_decay=0.0015)
+Best preprocessing used: PreprocessConfig(scaler='standard', clip_quantile=0.99)
+Validation metrics: accuracy=0.8227, precision=0.8432, recall=0.8163, f1=0.8296
+Held-out test metrics: accuracy=0.8232, precision=0.8389, recall=0.8238, f1=0.8313
+Decision threshold: 0.455
+
+Accuracy by confidence threshold (on test split):
+ threshold | selected | coverage | accuracy
+   0.50   |   1731   |  0.971   |  0.8325
+   0.55   |   1668   |  0.936   |  0.8393
+   0.60   |   1556   |  0.873   |  0.8573
+   0.65   |   1440   |  0.808   |  0.8694
+   0.70   |   1315   |  0.738   |  0.8859
+   0.75   |   1158   |  0.650   |  0.9033
+   0.80   |   990   |  0.556   |  0.9253
+   0.85   |   820   |  0.460   |  0.9427
+   0.90   |   619   |  0.347   |  0.9661
+   0.91   |   565   |  0.317   |  0.9664
+   0.92   |   520   |  0.292   |  0.9673
+   0.93   |   449   |  0.252   |  0.9666
+   0.94   |   394   |  0.221   |  0.9721
+   0.95   |   334   |  0.187   |  0.9820
+   0.96   |   278   |  0.156   |  0.9820
+   0.97   |   231   |  0.130   |  0.9827
+   0.98   |   180   |  0.101   |  0.9833
+   0.99   |   99   |  0.056   |  1.0000
+   1.00   |   0   |  0.000   |  n/a
+Saved model: /home/alan/0Code/hack-illinois-2026/models/insider_binary_best_only.pt
+Saved metadata: /home/alan/0Code/hack-illinois-2026/model/best_model_meta.json
+Saved future predictions: /home/alan/0Code/hack-illinois-2026/data/future_with_predictions.csv
