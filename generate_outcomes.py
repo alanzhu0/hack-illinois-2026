@@ -2,10 +2,13 @@ import argparse
 import csv
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+from tqdm import tqdm
 
 
 USER_AGENT = (
@@ -56,19 +59,29 @@ def parse_outcome_from_url(url: str, timeout: int, retries: int) -> str:
 	return outcome or ""
 
 
+def parse_outcome_task(link: str, timeout: int, retries: int) -> Tuple[str, str, Optional[Exception]]:
+	try:
+		outcome = parse_outcome_from_url(link, timeout=timeout, retries=retries)
+		return link, outcome, None
+	except Exception as error:
+		return link, "", error
+
+
 def update_csv_with_outcomes(
 	input_csv: Path,
 	output_csv: Path,
 	timeout: int,
 	retries: int,
 	delay_seconds: float,
-) -> None:
+	workers: int,
+) -> None:		
 	with input_csv.open("r", newline="", encoding="utf-8-sig") as infile:
 		reader = csv.DictReader(infile)
-		rows = list(reader)
 		if not reader.fieldnames:
 			raise RuntimeError("CSV has no header row.")
-		fieldnames = list(reader.fieldnames)
+		fieldnames = [re.sub(r"[\r\n]+", " ", name).strip() for name in reader.fieldnames]
+		reader.fieldnames = fieldnames
+		rows = list(reader)
 
 	link_column = fieldnames[-1]
 	outcome_column = "Outcome"
@@ -86,17 +99,24 @@ def update_csv_with_outcomes(
 	outcome_by_link: Dict[str, str] = {}
 	total = len(unique_links)
 
-	for index, link in enumerate(unique_links, start=1):
-		try:
-			outcome_by_link[link] = parse_outcome_from_url(link, timeout=timeout, retries=retries)
-		except Exception as error:
-			outcome_by_link[link] = ""
-			print(f"[{index}/{total}] Failed: {link} -> {error}")
-		else:
-			print(f"[{index}/{total}] Parsed: {link} -> {outcome_by_link[link] or 'N/A'}")
+	with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
+		future_to_link = {}
+		for index, link in tqdm(enumerate(unique_links, start=1), total=total, desc="Submitting tasks"):
+			future = executor.submit(parse_outcome_task, link, timeout, retries)
+			future_to_link[future] = link
+			if delay_seconds > 0 and index < total:
+				time.sleep(delay_seconds)
 
-		if delay_seconds > 0:
-			time.sleep(delay_seconds)
+		completed = 0
+		for future in tqdm(as_completed(future_to_link), total=total, desc="Processing tasks"):
+			completed += 1
+			link, outcome, error = future.result()
+			outcome_by_link[link] = outcome
+			if error is not None:
+				print(f"[{completed}/{total}] Failed: {link} -> {error}", flush=True)
+			else:
+				pass
+				# print(f"[{completed}/{total}] Parsed: {link} -> {outcome or 'N/A'}", flush=True)
 
 	for row in rows:
 		link = (row.get(link_column) or "").strip()
@@ -128,8 +148,14 @@ def main() -> None:
 	parser.add_argument(
 		"--delay",
 		type=float,
-		default=0.2,
-		help="Delay (seconds) between URL fetches",
+		default=0.01,
+		help="Delay (seconds) between task submissions",
+	)
+	parser.add_argument(
+		"--workers",
+		type=int,
+		default=8,
+		help="Number of concurrent URL fetch workers",
 	)
 	args = parser.parse_args()
 
@@ -145,6 +171,7 @@ def main() -> None:
 		timeout=args.timeout,
 		retries=args.retries,
 		delay_seconds=args.delay,
+		workers=args.workers,
 	)
 
 
