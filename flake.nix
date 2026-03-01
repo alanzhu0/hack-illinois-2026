@@ -79,6 +79,7 @@
               selenium
               numpy
               pandas
+              torch
             ];
           };
         }
