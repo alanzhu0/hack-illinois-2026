@@ -75,6 +75,10 @@
             packages = with python.pkgs; [
               venvShellHook
               pip
+
+              selenium
+              numpy
+              pandas
             ];
           };
         }
