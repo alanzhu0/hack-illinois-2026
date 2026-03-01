@@ -592,6 +592,10 @@ def main() -> None:
         max_unique_values=args.max_unique_values,
         hash_buckets=args.hash_buckets,
     )
+    print(f"\nTraining features ({features_df.shape[1]} total):")
+    for feature_name in features_df.columns:
+        print(f"- {feature_name}")
+
     x_all = features_df.to_numpy(dtype="float32")
     y_all = target_series.to_numpy(dtype="float32")
 

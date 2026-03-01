@@ -1,0 +1,36 @@
+{
+  "train_rows": 11172,
+  "train_positive": 6728,
+  "train_negative": 4444,
+  "split": {
+    "train_rows": 7822,
+    "validation_rows": 1675,
+    "test_rows": 1675,
+    "val_ratio": 0.15,
+    "test_ratio": 0.15
+  },
+  "validation_metrics": {
+    "accuracy": 0.8370149253731344,
+    "precision": 0.8357664233576643,
+    "recall": 0.9078295341922695,
+    "f1": 0.8703087885985749
+  },
+  "test_metrics": {
+    "accuracy": 0.8208955223880597,
+    "precision": 0.8341187558906692,
+    "recall": 0.8771060455896927,
+    "f1": 0.855072463768116
+  },
+  "decision_threshold": 0.36000000000000004,
+  "best_config": {
+    "hidden_layers": [
+      128,
+      64,
+      32
+    ],
+    "dropout": 0.1,
+    "learning_rate": 0.0012,
+    "weight_decay": 0.001
+  },
+  "device": "cpu"
+}
