@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>PolyPredict</title>
+	<style>
+		:root {
+			color-scheme: light;
+			--bg: #f4f7fb;
+			--panel: #ffffff;
+			--text: #0f172a;
+			--muted: #64748b;
+			--line: #e2e8f0;
+			--accent: #2563eb;
+			--accent-soft: #dbeafe;
+			--yes: #065f46;
+			--yes-bg: #d1fae5;
+			--no: #7f1d1d;
+			--no-bg: #fee2e2;
+		}
+		* { box-sizing: border-box; }
+		body {
+			margin: 0;
+			font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			background: linear-gradient(180deg, #eef4ff 0%, var(--bg) 100%);
+			color: var(--text);
+		}
+		.wrapper {
+			max-width: 1320px;
+			margin: 2rem auto;
+			padding: 0 1rem;
+		}
+		.hero {
+			background: var(--panel);
+			border: 1px solid var(--line);
+			border-radius: 14px;
+			padding: 1.25rem 1.5rem;
+			box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+			margin-bottom: 1rem;
+		}
+		h1 {
+			margin: 0;
+			font-size: 1.9rem;
+			letter-spacing: 0.2px;
+		}
+		.subtitle {
+			margin-top: 0.45rem;
+			color: var(--muted);
+			font-size: 0.95rem;
+		}
+		.nav {
+			margin-top: 0.9rem;
+			display: flex;
+			gap: 0.25rem;
+			border-bottom: 1px solid var(--line);
+		}
+		.nav a {
+			text-decoration: none;
+			font-size: 0.86rem;
+			font-weight: 700;
+			color: var(--muted);
+			padding: 0.55rem 0.8rem;
+			border-radius: 10px 10px 0 0;
+			border: 1px solid transparent;
+			border-bottom: none;
+			margin-bottom: -1px;
+		}
+		.nav a:hover {
+			color: var(--accent);
+			background: #f8fafc;
+		}
+		.nav a.active {
+			color: var(--accent);
+			background: #ffffff;
+			border-color: var(--line);
+		}
+		.table-wrap {
+			background: var(--panel);
+			border: 1px solid var(--line);
+			border-radius: 14px;
+			overflow: auto;
+			box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
+		}
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 0.93rem;
+		}
+		thead th {
+			position: sticky;
+			top: 0;
+			background: #f8fafc;
+			border-bottom: 1px solid var(--line);
+			text-transform: uppercase;
+			font-size: 0.72rem;
+			letter-spacing: 0.06em;
+			color: var(--muted);
+			padding: 0.75rem;
+			text-align: left;
+			white-space: nowrap;
+		}
+		tbody td {
+			padding: 0.75rem;
+			border-bottom: 1px solid #f1f5f9;
+			vertical-align: top;
+		}
+		tbody tr:hover {
+			background: #f8fbff;
+		}
+		.rank {
+			font-weight: 700;
+			color: var(--muted);
+		}
+		.market-link {
+			color: var(--accent);
+			text-decoration: none;
+			font-weight: 600;
+		}
+		.market-link:hover {
+			text-decoration: underline;
+		}
+		.badge {
+			display: inline-block;
+			padding: 0.22rem 0.55rem;
+			border-radius: 999px;
+			font-size: 0.75rem;
+			font-weight: 700;
+			letter-spacing: 0.03em;
+		}
+		.badge.yes { color: var(--yes); background: var(--yes-bg); }
+		.badge.no { color: var(--no); background: var(--no-bg); }
+		.numeric {
+			font-variant-numeric: tabular-nums;
+			white-space: nowrap;
+		}
+		.empty {
+			padding: 2rem;
+			color: var(--muted);
+		}
+	</style>
+</head>
+<body>
+	<div class="wrapper">
+		<header class="hero">
+			<h1>PolyPredict - Polymarket Insider Trading Predictions</h1>
+			<div class="subtitle">
+				{{ row_count }} predictions ranked by model confidence · Updated {{ last_updated|date:"Y-m-d H:i" }} UTC
+			</div>
+			<nav class="nav">
+				<a href="/" class="active">Trader Predictions</a>
+				<a href="/markets/">Grouped Markets</a>
+			</nav>
+		</header>
+
+		<section class="table-wrap">
+			{% if rows %}
+			<table>
+				<thead>
+					<tr>
+						<th>#</th>
+						<th>Market</th>
+						<th>Trader</th>
+						<th>Price</th>
+						<th>Size</th>
+						<th>Prediction</th>
+						<th>Confidence</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in rows %}
+					<tr>
+						<td class="rank numeric">{{ forloop.counter }}</td>
+						<td>
+							<a class="market-link" href="{{ row.market_url }}" target="_blank" rel="noopener noreferrer">
+								{{ row.market }}
+							</a>
+						</td>
+						<td>{{ row.name }}</td>
+						<td class="numeric">{{ row.price_usd }}</td>
+						<td class="numeric">{{ row.size_usd }}</td>
+						<td>
+							<span class="badge {% if row.outcome == 'YES' %}yes{% else %}no{% endif %}">
+								{{ row.outcome }}
+							</span>
+						</td>
+						<td class="numeric">{{ row.confidence_pct|floatformat:2 }}%</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			{% else %}
+				<div class="empty">No rows found in data/future_with_predictions.csv.</div>
+			{% endif %}
+		</section>
+	</div>
+</body>
+</html>
